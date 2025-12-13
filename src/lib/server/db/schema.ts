@@ -83,6 +83,7 @@ export const handler = pgTable('handler', {
 	runtime: text('runtime', { enum: ['python', 'typescript', 'javascript'] }),
 	async: boolean('async').default(false).notNull(),
 	name: text('name').notNull(),
+	enabled: boolean('enabled').default(true).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 });
