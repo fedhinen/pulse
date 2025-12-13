@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, text, timestamp, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, index, primaryKey } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
@@ -73,9 +73,57 @@ export const verification = pgTable(
 	(table) => [index('verification_identifier_idx').on(table.identifier)]
 );
 
+export const handler = pgTable('handler', {
+	id: text('id').primaryKey(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	filePath: text('file_path').notNull(),
+	fileName: text('file_name').notNull(),
+	runtime: text('runtime', { enum: ['python', 'typescript', 'javascript'] }),
+	async: boolean('async').default(false).notNull(),
+	name: text('name').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+});
+
+export const apiKey = pgTable('api_key', {
+	id: text('id').primaryKey(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	key: text('key').notNull().unique(),
+	name: text('name').notNull(),
+
+	accessType: text('access_type', { enum: ['FULL', 'SCOPED'] }).notNull(),
+	prefix: text('prefix').notNull(),
+	secretKey: text('secret_key').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+	revokedAt: timestamp('revoked_at')
+});
+
+export const keyPermissions = pgTable(
+	'key_permissions',
+	{
+		apiKeyId: text('api_key_id')
+			.notNull()
+			.references(() => apiKey.id, { onDelete: 'cascade' }),
+		handlerId: text('handler_id')
+			.notNull()
+			.references(() => handler.id, { onDelete: 'cascade' })
+	},
+	(table) => [primaryKey({ columns: [table.apiKeyId, table.handlerId] })]
+);
+
 export const userRelations = relations(user, ({ many }) => ({
 	sessions: many(session),
-	accounts: many(account)
+	accounts: many(account),
+	handlers: many(handler),
+	apiKeys: many(apiKey)
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -90,4 +138,20 @@ export const accountRelations = relations(account, ({ one }) => ({
 		fields: [account.userId],
 		references: [user.id]
 	})
+}));
+
+export const handlerRelations = relations(handler, ({ one, many }) => ({
+	user: one(user, {
+		fields: [handler.userId],
+		references: [user.id]
+	}),
+	apiKeys: many(keyPermissions)
+}));
+
+export const apiKeyRelations = relations(apiKey, ({ one, many }) => ({
+	user: one(user, {
+		fields: [apiKey.userId],
+		references: [user.id]
+	}),
+	handlers: many(keyPermissions)
 }));
