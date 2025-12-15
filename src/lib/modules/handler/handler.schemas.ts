@@ -1,11 +1,13 @@
 import z from 'zod';
 
+export const RUNTIMES = ['python', 'typescript', 'javascript'] as const;
+
 export const HandlerSchema = z.object({
 	id: z.string(),
 	userId: z.string(),
 	filePath: z.string(),
 	fileName: z.string(),
-	runtime: z.enum(['python', 'typescript', 'javascript']),
+	runtime: z.enum(RUNTIMES).default('typescript'),
 	async: z.boolean().default(false),
 	name: z.string(),
 	enabled: z.boolean().default(true),
@@ -20,7 +22,6 @@ export const HandlerCreateSchema = HandlerSchema.omit({
 });
 
 export const HandlerCreatePreflightSchema = HandlerCreateSchema.pick({
-	runtime: true,
 	async: true,
 	name: true
 }).extend({

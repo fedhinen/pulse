@@ -85,7 +85,8 @@ export const handler = pgTable('handler', {
 	name: text('name').notNull(),
 	enabled: boolean('enabled').default(true).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
+	updatedAt: timestamp('updated_at'),
+	deletedAt: timestamp('deleted_at')
 });
 
 export const apiKey = pgTable('api_key', {
@@ -93,7 +94,6 @@ export const apiKey = pgTable('api_key', {
 	userId: text('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
-	key: text('key').notNull().unique(),
 	name: text('name').notNull(),
 
 	accessType: text('access_type', { enum: ['FULL', 'SCOPED'] }).notNull(),
@@ -115,7 +115,10 @@ export const keyPermissions = pgTable(
 			.references(() => apiKey.id, { onDelete: 'cascade' }),
 		handlerId: text('handler_id')
 			.notNull()
-			.references(() => handler.id, { onDelete: 'cascade' })
+			.references(() => handler.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' })
 	},
 	(table) => [primaryKey({ columns: [table.apiKeyId, table.handlerId] })]
 );
