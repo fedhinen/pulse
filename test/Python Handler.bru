@@ -1,0 +1,26 @@
+meta {
+  name: Python Handler
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8000/api/v1/run/a4be13f8-f004-4b3c-8c94-f5c8edb31dc0
+  body: json
+  auth: inherit
+}
+
+headers {
+  X-Pulse-Key: bguwydj7hmyswa3ohwf1skunhxlrj1sk
+}
+
+body:json {
+  {
+    "name": "fedhinen"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

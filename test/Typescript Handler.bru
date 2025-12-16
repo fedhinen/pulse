@@ -1,0 +1,26 @@
+meta {
+  name: Typescript Handler
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:8000/api/v1/run/d4f05011-2dd9-42f3-b00e-a0974691c4e2
+  body: json
+  auth: inherit
+}
+
+headers {
+  X-Pulse-Key: bguwydj7hmyswa3ohwf1skunhxlrj1sk
+}
+
+body:json {
+  {
+    "name": "fedhinen"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

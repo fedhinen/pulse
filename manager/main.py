@@ -32,6 +32,16 @@ JSONObject = Dict[Any, Any]
 JSONArray = List[Any]
 JSONStructure = Union[JSONArray, JSONObject]
 
+RUNTIMES = {
+    "python": "python-runtime",
+    "typescript": "typescript-runtime",
+}
+
+USER_PATH = {
+    "python": "/app/user_function.py",
+    "typescript": "/app/user_function.ts",
+}
+
 
 @app.post("/api/v1/run/{handler_id}")
 async def run_handler(
@@ -56,9 +66,18 @@ async def run_handler(
     host_path = handler_data.filePath
 
     try:
+        runtime = handler_data.runtime
+        image = RUNTIMES.get(runtime)
+        user_path = USER_PATH.get(runtime)
+        if image is None:
+            return {"error": f"Unsupported runtime: {runtime}"}, 400
+
+        if user_path is None:
+            return {"error": f"Unsupported runtime path: {runtime}"}, 400
+
         container = client.containers.run(
-            image="python-runtime",
-            volumes={host_path: {"bind": "/app/user_function.py", "mode": "ro,Z"}},
+            image=image,
+            volumes={host_path: {"bind": user_path, "mode": "ro,Z"}},
             stdin_open=True,
             detach=True,
             network_disabled=True,
