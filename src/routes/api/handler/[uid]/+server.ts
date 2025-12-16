@@ -42,5 +42,10 @@ export async function GET({ params, request }) {
 
 	const { id, fileName, filePath, name, runtime, async } = data;
 
-	return json({ id, fileName, filePath, name, runtime, async });
+	return json(
+		{ id, fileName, filePath, name, runtime, isAsync: async },
+		{
+			status: 200
+		}
+	);
 }
