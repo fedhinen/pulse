@@ -99,8 +99,8 @@ async def run_handler(
         container.wait()
 
         handler_result = container.logs(stdout=True, stderr=False)
-        # handler_logs = container.logs(stdout=False, stderr=True)
-        # print(handler_logs)
+        handler_logs = container.logs(stdout=False, stderr=True)
+        print(handler_logs)
 
         container.remove()
 

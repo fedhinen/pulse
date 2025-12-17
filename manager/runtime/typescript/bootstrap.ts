@@ -11,6 +11,21 @@ async function run() {
 		event = {};
 	}
 
+	const originalConsole = {
+		log: console.log,
+		error: console.error,
+		warn: console.warn,
+		info: console.info
+	};
+
+	let logBuffer = '';
+
+	const capture = (...args: unknown[]) => {
+		logBuffer +=
+			args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg, null, 2))).join(' ') +
+			'\n';
+	};
+
 	try {
 		const modulePath = path.resolve(process.cwd(), './user_function');
 		const userModule = await import(modulePath);
@@ -23,8 +38,16 @@ async function run() {
 			);
 		}
 
+		console.log = capture;
+		console.error = capture;
+		console.warn = capture;
+		console.info = capture;
+
 		const result = await handler(event);
 
+		Object.assign(console, originalConsole);
+
+		process.stderr.write(JSON.stringify(logBuffer));
 		process.stdout.write(JSON.stringify({ status: 'success', output: result }));
 	} catch (error) {
 		if (error instanceof Error) {
