@@ -75,6 +75,10 @@ async def run_handler(
         if user_path is None:
             return {"error": f"Unsupported runtime path: {runtime}"}, 400
 
+        if handler_data.isAsync:
+            ## BullMQ o RabbitMQ para manejar asincronía en el futuro
+            return {"error": "Asynchronous handlers are not supported yet"}, 400
+
         container = client.containers.run(
             image=image,
             volumes={host_path: {"bind": user_path, "mode": "ro,Z"}},
@@ -94,9 +98,16 @@ async def run_handler(
 
         container.wait()
 
-        logs = container.logs(stdout=True, stderr=False)
+        handler_result = container.logs(stdout=True, stderr=False)
+        # handler_logs = container.logs(stdout=False, stderr=True)
+        # print(handler_logs)
+
         container.remove()
-        return logs
+
+        try:
+            return json.loads(handler_result)
+        except Exception:
+            return handler_result
 
     except Exception as e:
         return {"error": str(e)}, 500
