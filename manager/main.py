@@ -1,9 +1,13 @@
+import asyncio
 import json
 import socket as pysocket
 from datetime import date
+from time import time
 from typing import Annotated, Any, Dict, List, Union
 
 import docker
+import psycopg2
+from aio_pika import DeliveryMode, Message, connect_robust
 from fastapi import FastAPI, Header
 from pydantic import BaseModel
 
@@ -43,6 +47,24 @@ USER_PATH = {
 }
 
 
+async def publish_message(message: Dict[str, Any], key: str):
+    try:
+        connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
+        channel = await connection.channel()
+
+        await channel.default_exchange.publish(
+            Message(
+                body=json.dumps(message).encode(),
+                content_type="application/json",
+                delivery_mode=DeliveryMode.PERSISTENT,
+            ),
+            routing_key=key,
+        )
+        await connection.close()
+    except Exception as e:
+        print("Error in publish message", e)
+
+
 @app.post("/api/v1/run/{handler_id}")
 async def run_handler(
     handler_id: str,
@@ -79,6 +101,7 @@ async def run_handler(
             ## BullMQ o RabbitMQ para manejar asincronía en el futuro
             return {"error": "Asynchronous handlers are not supported yet"}, 400
 
+        start_time = time()
         container = client.containers.run(
             image=image,
             volumes={host_path: {"bind": user_path, "mode": "ro,Z"}},
@@ -98,14 +121,31 @@ async def run_handler(
 
         container.wait()
 
-        handler_result = container.logs(stdout=True, stderr=False)
-        handler_logs = container.logs(stdout=False, stderr=True)
+        handler_result_raw = container.logs(stdout=True, stderr=False)
+        handler_logs_raw = container.logs(stdout=False, stderr=True)
+
+        handler_logs = handler_logs_raw.decode("utf-8") if handler_logs_raw else ""
         print(handler_logs)
 
         container.remove()
+        end_time = time()
+
+        json_response = (
+            json.loads(handler_result_raw.decode("utf-8")) if handler_result_raw else {}
+        )
+
+        synchronized_exec_data = {
+            "end_time": end_time,
+            "start_time": start_time,
+            "logs": handler_logs,
+            "response": json_response,
+            "handler_id": handler_id,
+        }
+
+        await publish_message(synchronized_exec_data, "logs_synchronous")
 
         try:
-            return json.loads(handler_result)
+            return json_response
         except Exception:
             return handler_result
 

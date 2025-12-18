@@ -140,7 +140,7 @@ export const handlerExec = pgTable('handler_exec', {
 		.references(() => handler.id, { onDelete: 'cascade' }),
 	response: jsonb('response'),
 	status: text('status', { enum: ['QUEUE', 'PROGRESS', 'FINISHED', 'ERROR'] }),
-	logId: text('id').references(() => handlerLogs.id, { onDelete: 'cascade' })
+	logId: text('log_id').references(() => handlerLogs.id, { onDelete: 'cascade' })
 });
 
 export const userRelations = relations(user, ({ many }) => ({
