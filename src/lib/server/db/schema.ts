@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, text, timestamp, boolean, index, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, index, primaryKey, jsonb } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
@@ -123,6 +123,26 @@ export const keyPermissions = pgTable(
 	(table) => [primaryKey({ columns: [table.apiKeyId, table.handlerId] })]
 );
 
+export const handlerLogs = pgTable('handler_logs', {
+	id: text('id').primaryKey(),
+	handlerId: text('handler_id')
+		.notNull()
+		.references(() => handler.id, { onDelete: 'cascade' }),
+	logs: jsonb('logs'),
+	startAt: timestamp('start_at').notNull(),
+	endAt: timestamp('end_at').notNull()
+});
+
+export const handlerExec = pgTable('handler_exec', {
+	id: text('id').primaryKey(),
+	handlerId: text('handler_id')
+		.notNull()
+		.references(() => handler.id, { onDelete: 'cascade' }),
+	response: jsonb('response'),
+	status: text('status', { enum: ['QUEUE', 'PROGRESS', 'FINISHED', 'ERROR'] }),
+	logId: text('id').references(() => handlerLogs.id, { onDelete: 'cascade' })
+});
+
 export const userRelations = relations(user, ({ many }) => ({
 	sessions: many(session),
 	accounts: many(account),
@@ -149,7 +169,20 @@ export const handlerRelations = relations(handler, ({ one, many }) => ({
 		fields: [handler.userId],
 		references: [user.id]
 	}),
-	apiKeys: many(keyPermissions)
+	apiKeys: many(keyPermissions),
+	logs: many(handlerLogs),
+	execs: many(handlerExec)
+}));
+
+export const handlerExecRelations = relations(handlerExec, ({ one }) => ({
+	handler: one(handler, {
+		fields: [handlerExec.id],
+		references: [handler.id]
+	}),
+	log: one(handlerLogs, {
+		fields: [handlerExec.logId],
+		references: [handlerLogs.id]
+	})
 }));
 
 export const apiKeyRelations = relations(apiKey, ({ one, many }) => ({
