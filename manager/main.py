@@ -20,25 +20,6 @@ timestamp = date.today().isoformat()
 async def health_check():
     return {"status": "ok", "timestamp": timestamp}
 
-
-async def publish_message(message: Dict[str, Any], key: str):
-    try:
-        connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
-        channel = await connection.channel()
-
-        await channel.default_exchange.publish(
-            Message(
-                body=json.dumps(message).encode(),
-                content_type="application/json",
-                delivery_mode=DeliveryMode.PERSISTENT,
-            ),
-            routing_key=key,
-        )
-        await connection.close()
-    except Exception as e:
-        print("Error in publish message", e)
-
-
 @app.post("/api/v1/run/{handler_id}")
 async def run_handler(
     handler_id: str,

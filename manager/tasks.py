@@ -4,15 +4,11 @@ import uuid
 from datetime import datetime
 from time import time
 from typing import Any, Dict
-import socket as pysocket
-
-import docker
-import psycopg2
-from aio_pika import DeliveryMode, Message, connect_robust
 from psycopg2.extras import Json
 
 from src.container import ContainerRun, ContainerRunner
 from src.schemas import AsynchronousExecData
+from src.worker import broker
 from src.repository import (
     repository,
     HandlerExecEntry,
@@ -20,37 +16,9 @@ from src.repository import (
     HandlerLogEntry,
 )
 
-client = docker.from_env()
-psql = psycopg2.connect(
-    database="local",
-    user="root",
-    host="localhost",
-    password="mysecretpassword",
-    port=5432,
-)
-
-
-async def publish_message(message: Dict[str, Any], key: str):
-    try:
-        connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
-        channel = await connection.channel()
-
-        await channel.default_exchange.publish(
-            Message(
-                body=json.dumps(message).encode(),
-                content_type="application/json",
-                delivery_mode=DeliveryMode.PERSISTENT,
-            ),
-            routing_key=key,
-        )
-        await connection.close()
-    except Exception as e:
-        print("Error in publish message", e)
-
 
 async def logs():
-    connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
-    channel = await connection.channel()
+    channel = await broker.worker()
 
     queue = await channel.declare_queue("logs")
     async with queue.iterator() as q_iter:
@@ -101,8 +69,7 @@ async def logs():
 
 
 async def asynchronous_exec():
-    connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
-    channel = await connection.channel()
+    channel = await broker.worker()
 
     queue = await channel.declare_queue("asynchronous_exec")
 
@@ -142,18 +109,21 @@ async def asynchronous_exec():
                         "handler_id": validated_data.handler_id,
                     }
 
-                    await publish_message(synchronized_exec_data, "logs")
+                    await broker.publish(synchronized_exec_data, "logs")
 
                 except Exception as e:
                     print(f"Error in asynchronous exec worker {e}")
 
 
 async def main():
-    await asyncio.gather(
-        logs(),
-        asynchronous_exec(),
-    )
-
+    await broker.connect()
+    try:
+        await asyncio.gather(
+            logs(),
+            asynchronous_exec(),
+        )
+    finally:
+        await broker.close()
 
 if __name__ == "__main__":
     try:

@@ -1,32 +1,12 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 from dataclasses import dataclass
-import json
-from typing import Any, Dict
 import uuid
-from aio_pika import DeliveryMode, Message, connect_robust
 
 from src.container import ContainerRun, ContainerRunner
 from src.repository import HandlerExecEntry, repository
+from src.worker import broker
 from psycopg2.extras import Json  # Importante para JSONB
-
-
-async def publish_message(message: Dict[str, Any], key: str):
-    try:
-        connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
-        channel = await connection.channel()
-
-        await channel.default_exchange.publish(
-            Message(
-                body=json.dumps(message).encode(),
-                content_type="application/json",
-                delivery_mode=DeliveryMode.PERSISTENT,
-            ),
-            routing_key=key,
-        )
-        await connection.close()
-    except Exception as e:
-        print("Error in publish message", e)
 
 
 @dataclass
@@ -68,7 +48,7 @@ class SynchronousStrategy(ExecutorStrategy):
             "handler_id": data.handler_id,
         }
 
-        await publish_message(synchronized_exec_data, "logs")
+        await broker.publish(synchronized_exec_data, "logs")
 
         return handler_json["response"]
 
@@ -100,7 +80,7 @@ class AsynchronousStrategy(ExecutorStrategy):
             "exec_id": str(exec_id),
         }
 
-        await publish_message(async_handler, "asynchronous_exec")
+        await broker.publish(async_handler, "asynchronous_exec")
 
         return {"exec_id": str(exec_id)}
     

@@ -2,7 +2,6 @@ import asyncio
 from contextlib import contextmanager
 from dataclasses import astuple, dataclass
 from datetime import datetime
-import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
 from psycopg2.extras import Json  # Importante para JSONB
 
@@ -48,13 +47,6 @@ class Repository(metaclass=RepositoryMeta):
         self.db_pool = ThreadedConnectionPool(
             minconn=1,
             maxconn=10,
-            database="local",
-            user="root",
-            host="localhost",
-            password="mysecretpassword",
-            port=5432,
-        )
-        self.connection = psycopg2.connect(
             database="local",
             user="root",
             host="localhost",
