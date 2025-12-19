@@ -9,7 +9,10 @@ import socket as pysocket
 import docker
 import psycopg2
 from aio_pika import DeliveryMode, Message, connect_robust
-from psycopg2.extras import Json  # Importante para JSONB
+from psycopg2.extras import Json
+
+from src.repository import repository
+from src.repository import HandlerExecEntry, HandlerExecUpdate, HandlerLogEntry  # Importante para JSONB
 
 client = docker.from_env()
 psql = psycopg2.connect(
@@ -60,46 +63,33 @@ async def logs_synchronous():
                     if handler_id is None:
                         continue
 
-                    cur = psql.cursor()
-                    handler_log = (
-                        str(log_id),
-                        handler_id,
-                        Json(data.get("logs") or {}),
-                        start_at,
-                        end_at,
+                    handler_log = HandlerLogEntry(
+                        log_id=str(log_id),
+                        handler_id=handler_id,
+                        logs=Json(data.get("logs") or {}),
+                        start_at=start_at,
+                        end_at=end_at,
                     )
-                    cur.execute(
-                        """INSERT INTO handler_logs (id, handler_id, logs, start_at, end_at) VALUES (%s, %s, %s, %s, %s)""",
-                        handler_log,
-                    )
-                    psql.commit()
 
+                    repository.insert_handler_logs(handler_log)
     
                     if exec_id is None:
-                        handler_exec = (
-                            str(uuid.uuid7()),
-                            handler_id,
-                            Json(data.get("response") or {}),
-                            "FINISHED",
-                            str(log_id),
+                        handler_exec = HandlerExecEntry (
+                            exec_id=str(uuid.uuid7()),
+                            handler_id=handler_id,
+                            response=Json(data.get("response") or {}),
+                            status="FINISHED",
+                            log_id=str(log_id),
                         )
-                        cur.execute(
-                            """INSERT INTO handler_exec (id, handler_id, response, status, log_id) VALUES (%s, %s, %s, %s, %s)""",
-                            handler_exec,
-                        )
-                        psql.commit()
+                        repository.insert_handler_exec(handler_exec)
                     else:
-                        handler_exec_update = (
-                            "FINISHED",
-                            Json(data.get("response") or {}),
-                            str(log_id),
-                            str(exec_id),
+                        handler_exec_update = HandlerExecUpdate (
+                            status="FINISHED",
+                            response=Json(data.get("response") or {}),
+                            log_id=str(log_id),
+                            exec_id=str(exec_id),
                         )
-                        cur.execute(
-                            """UPDATE handler_exec SET status = %s, response = %s, log_id = %s WHERE id = %s""",
-                            handler_exec_update,
-                        )
-                        psql.commit()
+                        repository.update_handler_exec(handler_exec_update)
 
                 except Exception as e:
                     print(f"Error in worker {e}")
@@ -129,14 +119,14 @@ async def asynchronous_exec():
                         continue
 
                     cur = psql.cursor()
-                    handler_exec = (
-                        "PROGRESS",
-                        str(exec_id),
+                    handler_exec = HandlerExecUpdate (
+                        status="PROGRESS",
+                        exec_id=str(exec_id),
+                        response=Json({}),
+                        log_id=None,
                     )
-                    cur.execute(
-                        """UPDATE handler_exec SET status = %s WHERE id = %s""",
-                        handler_exec,
-                    )
+
+                    repository.update_handler_exec(handler_exec)
 
                     start_time = time()
                     container = client.containers.run(

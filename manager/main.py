@@ -8,24 +8,18 @@ import uuid
 from psycopg2.extras import Json  # Importante para JSONB
 
 import docker
-import psycopg2
 from aio_pika import DeliveryMode, Message, connect_robust
 from fastapi import FastAPI, Header
 from pydantic import BaseModel
 
 import requests
 
+from src.repository import HandlerExecEntry, repository
+
 app = FastAPI()
 client = docker.from_env()
 timestamp = date.today().isoformat()
 
-psql = psycopg2.connect(
-    database="local",
-    user="root",
-    host="localhost",
-    password="mysecretpassword",
-    port=5432,
-)
 
 
 
@@ -111,19 +105,14 @@ async def run_handler(
         if handler_data.isAsync:
             exec_id = uuid.uuid7()
 
-            cur = psql.cursor()
-            handler_exec = (
-                str(exec_id),
-                handler_id,
-                Json({}),
-                "QUEUE",
-                None,
-            )
-            cur.execute(
-                """INSERT INTO handler_exec (id, handler_id, response, status, log_id) VALUES (%s, %s, %s, %s, %s)""",
-                handler_exec,
-            )
-            psql.commit()
+            handler_exec = HandlerExecEntry(
+                exec_id=str(exec_id),
+                handler_id=handler_id,
+                response=Json({}),
+                status="QUEUE", log_id=None,
+            ) 
+
+            repository.insert_handler_exec(handler_exec)
 
             async_handler = {
                 "runtime": runtime,
