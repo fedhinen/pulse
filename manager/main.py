@@ -4,6 +4,8 @@ import socket as pysocket
 from datetime import date
 from time import time
 from typing import Annotated, Any, Dict, List, Union
+import uuid
+from psycopg2.extras import Json  # Importante para JSONB
 
 import docker
 import psycopg2
@@ -16,6 +18,15 @@ import requests
 app = FastAPI()
 client = docker.from_env()
 timestamp = date.today().isoformat()
+
+psql = psycopg2.connect(
+    database="local",
+    user="root",
+    host="localhost",
+    password="mysecretpassword",
+    port=5432,
+)
+
 
 
 class HandlerData(BaseModel):
@@ -98,8 +109,35 @@ async def run_handler(
             return {"error": f"Unsupported runtime path: {runtime}"}, 400
 
         if handler_data.isAsync:
-            ## BullMQ o RabbitMQ para manejar asincronía en el futuro
-            return {"error": "Asynchronous handlers are not supported yet"}, 400
+            exec_id = uuid.uuid7()
+
+            cur = psql.cursor()
+            handler_exec = (
+                str(exec_id),
+                handler_id,
+                Json({}),
+                "QUEUE",
+                None,
+            )
+            cur.execute(
+                """INSERT INTO handler_exec (id, handler_id, response, status, log_id) VALUES (%s, %s, %s, %s, %s)""",
+                handler_exec,
+            )
+            psql.commit()
+
+            async_handler = {
+                "runtime": runtime,
+                "image": image,
+                "user_path": user_path,
+                "host_path": host_path,
+                "handler_id": handler_id,
+                "payload": payload_json,
+                "exec_id": str(exec_id),
+            }
+
+            await publish_message(async_handler, "asynchronous_exec")
+
+            return {"exec_id": str(exec_id)}, 202
 
         start_time = time()
         container = client.containers.run(
@@ -147,7 +185,7 @@ async def run_handler(
         try:
             return json_response
         except Exception:
-            return handler_result
+            return handler_result_raw
 
     except Exception as e:
         return {"error": str(e)}, 500
