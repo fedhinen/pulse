@@ -11,8 +11,12 @@ import psycopg2
 from aio_pika import DeliveryMode, Message, connect_robust
 from psycopg2.extras import Json
 
-from src.repository import repository
-from src.repository import HandlerExecEntry, HandlerExecUpdate, HandlerLogEntry  # Importante para JSONB
+from src.repository import (
+    repository,
+    HandlerExecEntry,
+    HandlerExecUpdate,
+    HandlerLogEntry,
+)
 
 client = docker.from_env()
 psql = psycopg2.connect(
@@ -22,6 +26,7 @@ psql = psycopg2.connect(
     password="mysecretpassword",
     port=5432,
 )
+
 
 async def publish_message(message: Dict[str, Any], key: str):
     try:
@@ -39,7 +44,6 @@ async def publish_message(message: Dict[str, Any], key: str):
         await connection.close()
     except Exception as e:
         print("Error in publish message", e)
-
 
 
 async def logs_synchronous():
@@ -71,28 +75,29 @@ async def logs_synchronous():
                         end_at=end_at,
                     )
 
-                    repository.insert_handler_logs(handler_log)
-    
+                    await repository.insert_handler_logs(handler_log)
+
                     if exec_id is None:
-                        handler_exec = HandlerExecEntry (
+                        handler_exec = HandlerExecEntry(
                             exec_id=str(uuid.uuid7()),
                             handler_id=handler_id,
                             response=Json(data.get("response") or {}),
                             status="FINISHED",
                             log_id=str(log_id),
                         )
-                        repository.insert_handler_exec(handler_exec)
+                        await repository.insert_handler_exec(handler_exec)
                     else:
-                        handler_exec_update = HandlerExecUpdate (
+                        handler_exec_update = HandlerExecUpdate(
                             status="FINISHED",
                             response=Json(data.get("response") or {}),
                             log_id=str(log_id),
                             exec_id=str(exec_id),
                         )
-                        repository.update_handler_exec(handler_exec_update)
+                        await repository.update_handler_exec(handler_exec_update)
 
                 except Exception as e:
                     print(f"Error in worker {e}")
+
 
 async def asynchronous_exec():
     connection = await connect_robust("amqp://pulse:pulse@127.0.0.1")
@@ -114,19 +119,27 @@ async def asynchronous_exec():
                     payload_json = data.get("payload")
                     exec_id = data.get("exec_id")
 
-                    if runtime is None or image is None or user_path is None or host_path is None or handler_id is None or payload_json is None or exec_id is None:
+                    if (
+                        runtime is None
+                        or image is None
+                        or user_path is None
+                        or host_path is None
+                        or handler_id is None
+                        or payload_json is None
+                        or exec_id is None
+                    ):
                         print("Invalid asynchronous exec data")
                         continue
 
                     cur = psql.cursor()
-                    handler_exec = HandlerExecUpdate (
+                    handler_exec = HandlerExecUpdate(
                         status="PROGRESS",
                         exec_id=str(exec_id),
                         response=Json({}),
                         log_id=None,
                     )
 
-                    repository.update_handler_exec(handler_exec)
+                    await repository.update_handler_exec(handler_exec)
 
                     start_time = time()
                     container = client.containers.run(
@@ -151,17 +164,23 @@ async def asynchronous_exec():
                     handler_result_raw = container.logs(stdout=True, stderr=False)
                     handler_logs_raw = container.logs(stdout=False, stderr=True)
 
-                    handler_logs = handler_logs_raw.decode("utf-8") if handler_logs_raw else ""
+                    handler_logs = (
+                        handler_logs_raw.decode("utf-8") if handler_logs_raw else ""
+                    )
                     print(handler_logs)
 
                     container.remove()
                     end_time = time()
 
                     json_response = (
-                        json.loads(handler_result_raw.decode("utf-8")) if handler_result_raw else {}
+                        json.loads(handler_result_raw.decode("utf-8"))
+                        if handler_result_raw
+                        else {}
                     )
 
-                    print(f"Asynchronous exec completed for exec_id: {exec_id} {json_response}")
+                    print(
+                        f"Asynchronous exec completed for exec_id: {exec_id} {json_response}"
+                    )
 
                     synchronized_exec_data = {
                         "exec_id": exec_id,
@@ -177,6 +196,7 @@ async def asynchronous_exec():
 
                 except Exception as e:
                     print(f"Error in asynchronous exec worker {e}")
+
 
 async def main():
     await asyncio.gather(

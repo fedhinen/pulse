@@ -21,8 +21,6 @@ client = docker.from_env()
 timestamp = date.today().isoformat()
 
 
-
-
 class HandlerData(BaseModel):
     id: str
     name: str
@@ -109,10 +107,11 @@ async def run_handler(
                 exec_id=str(exec_id),
                 handler_id=handler_id,
                 response=Json({}),
-                status="QUEUE", log_id=None,
-            ) 
+                status="QUEUE",
+                log_id=None,
+            )
 
-            repository.insert_handler_exec(handler_exec)
+            await repository.insert_handler_exec(handler_exec)
 
             async_handler = {
                 "runtime": runtime,
