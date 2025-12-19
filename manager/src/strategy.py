@@ -63,7 +63,7 @@ class AsynchronousStrategy(ExecutorStrategy):
         handler_exec = HandlerExecEntry(
             exec_id=str(exec_id),
             handler_id=data.handler_id,
-            response=Json({}),
+            response="{}",
             status="QUEUE",
             log_id=None,
         )

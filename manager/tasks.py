@@ -39,7 +39,7 @@ async def logs():
                     handler_log = HandlerLogEntry(
                         log_id=str(log_id),
                         handler_id=handler_id,
-                        logs=Json(data.get("logs") or {}),
+                        logs=json.dumps(data.get("logs") or {}),
                         start_at=start_at,
                         end_at=end_at,
                     )
@@ -50,7 +50,7 @@ async def logs():
                         handler_exec = HandlerExecEntry(
                             exec_id=str(uuid.uuid7()),
                             handler_id=handler_id,
-                            response=Json(data.get("response") or {}),
+                            response=json.dumps(data.get("response") or {}),
                             status="FINISHED",
                             log_id=str(log_id),
                         )
@@ -58,7 +58,7 @@ async def logs():
                     else:
                         handler_exec_update = HandlerExecUpdate(
                             status="FINISHED",
-                            response=Json(data.get("response") or {}),
+                            response=json.dumps(data.get("response") or {}),
                             log_id=str(log_id),
                             exec_id=str(exec_id),
                         )
@@ -86,7 +86,7 @@ async def asynchronous_exec():
                     handler_exec = HandlerExecUpdate(
                         status="PROGRESS",
                         exec_id=str(validated_data.exec_id),
-                        response=Json({}),
+                        response=json.dumps({}),
                         log_id=None,
                     )
 

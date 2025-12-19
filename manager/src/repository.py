@@ -1,16 +1,13 @@
-import asyncio
-from contextlib import contextmanager
 from dataclasses import astuple, dataclass
 from datetime import datetime
-from psycopg2.pool import ThreadedConnectionPool
-from psycopg2.extras import Json  # Importante para JSONB
+import asyncpg
 
 
 @dataclass
 class HandlerLogEntry:
     log_id: str
     handler_id: str
-    logs: Json
+    logs: str
     start_at: datetime
     end_at: datetime
 
@@ -19,7 +16,7 @@ class HandlerLogEntry:
 class HandlerExecEntry:
     exec_id: str
     handler_id: str
-    response: Json
+    response: str
     status: str
     log_id: str | None
 
@@ -27,7 +24,7 @@ class HandlerExecEntry:
 @dataclass
 class HandlerExecUpdate:
     status: str
-    response: Json
+    response: str
     log_id: str | None
     exec_id: str
 
@@ -43,10 +40,17 @@ class RepositoryMeta(type):
 
 
 class Repository(metaclass=RepositoryMeta):
+
     def __init__(self):
-        self.db_pool = ThreadedConnectionPool(
-            minconn=1,
-            maxconn=10,
+        self.db_pool: asyncpg.Pool | None = None
+
+    async def connect(self):
+        if self.db_pool:
+            return
+        
+        self.db_pool = await asyncpg.create_pool(
+            min_size=1,
+            max_size=10,
             database="local",
             user="root",
             host="localhost",
@@ -54,30 +58,24 @@ class Repository(metaclass=RepositoryMeta):
             port=5432,
         )
 
-    @contextmanager
-    def _get_db_cursor(self):
-        conn = self.db_pool.getconn()
-        try:
-            with conn.cursor() as cursor:
-                yield cursor
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            self.db_pool.putconn(conn)
-
-    def _raw_executor_sync(self, statement: str, params: tuple = ()):
-        with self._get_db_cursor() as cursor:
-            cursor.execute(statement, params)
-        return params
+    async def _raw_executor_sync(self, statement: str, *args):
+        if self.db_pool is None:
+            raise Exception("Database pool not established")
+        
+        
+        async with self.db_pool.acquire() as connection:
+            await connection.execute(statement, *args)
+        return args
 
     async def raw_executor(self, statement: str, params: tuple = ()):
-        return await asyncio.to_thread(self._raw_executor_sync, statement, params)
+        if self.db_pool is None:
+            await self.connect()
+        
+        return await self._raw_executor_sync(statement, *params)
 
     async def insert_handler_exec(self, data: HandlerExecEntry):
         insert_statement = """
-        INSERT INTO handler_exec (id, handler_id, response, status, log_id) VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO handler_exec (id, handler_id, response, status, log_id) VALUES ($1, $2, $3, $4, $5)
         """
 
         await self.raw_executor(insert_statement, astuple(data))
@@ -86,7 +84,7 @@ class Repository(metaclass=RepositoryMeta):
 
     async def insert_handler_logs(self, data: HandlerLogEntry):
         insert_statement = """
-        INSERT INTO handler_logs (id, handler_id, logs, start_at, end_at) VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO handler_logs (id, handler_id, logs, start_at, end_at) VALUES ($1, $2, $3, $4, $5)
         """
 
         await self.raw_executor(insert_statement, astuple(data))
@@ -95,7 +93,7 @@ class Repository(metaclass=RepositoryMeta):
 
     async def update_handler_exec(self, data: HandlerExecUpdate):
         update_statement = """
-        UPDATE handler_exec SET status = %s, response = %s, log_id = %s WHERE id = %s
+        UPDATE handler_exec SET status = $1, response = $2, log_id = $3 WHERE id = $4
         """
         await self.raw_executor(update_statement, astuple(data))
         return data
