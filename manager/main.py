@@ -1,53 +1,24 @@
-import asyncio
 import json
-import socket as pysocket
 from datetime import date
-from time import time
-from typing import Annotated, Any, Dict, List, Union
-import uuid
-from psycopg2.extras import Json  # Importante para JSONB
+from typing import Annotated, Any, Dict
 
 import docker
 from aio_pika import DeliveryMode, Message, connect_robust
 from fastapi import FastAPI, Header
-from pydantic import BaseModel
 
 import requests
 
-from src.repository import HandlerExecEntry, repository
+from src.schemas import RUNTIMES, USER_PATH, HandlerData, JSONStructure
+from src.strategy import ExecutorFactory, HandlerExecutionData
 
 app = FastAPI()
 client = docker.from_env()
 timestamp = date.today().isoformat()
 
 
-class HandlerData(BaseModel):
-    id: str
-    name: str
-    fileName: str
-    filePath: str
-    runtime: str
-    isAsync: bool
-
-
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "timestamp": timestamp}
-
-
-JSONObject = Dict[Any, Any]
-JSONArray = List[Any]
-JSONStructure = Union[JSONArray, JSONObject]
-
-RUNTIMES = {
-    "python": "python-runtime",
-    "typescript": "typescript-runtime",
-}
-
-USER_PATH = {
-    "python": "/app/user_function.py",
-    "typescript": "/app/user_function.ts",
-}
 
 
 async def publish_message(message: Dict[str, Any], key: str):
@@ -100,80 +71,19 @@ async def run_handler(
         if user_path is None:
             return {"error": f"Unsupported runtime path: {runtime}"}, 400
 
-        if handler_data.isAsync:
-            exec_id = uuid.uuid7()
+        executor = ExecutorFactory.get_executor(handler_data.isAsync)
 
-            handler_exec = HandlerExecEntry(
-                exec_id=str(exec_id),
+        result = await executor.execute(
+            data=HandlerExecutionData(
                 handler_id=handler_id,
-                response=Json({}),
-                status="QUEUE",
-                log_id=None,
+                image=image,
+                host_path=host_path,
+                user_path=user_path,
+                runtime=runtime,
+                payload=payload_json,
             )
-
-            await repository.insert_handler_exec(handler_exec)
-
-            async_handler = {
-                "runtime": runtime,
-                "image": image,
-                "user_path": user_path,
-                "host_path": host_path,
-                "handler_id": handler_id,
-                "payload": payload_json,
-                "exec_id": str(exec_id),
-            }
-
-            await publish_message(async_handler, "asynchronous_exec")
-
-            return {"exec_id": str(exec_id)}, 202
-
-        start_time = time()
-        container = client.containers.run(
-            image=image,
-            volumes={host_path: {"bind": user_path, "mode": "ro,Z"}},
-            stdin_open=True,
-            detach=True,
-            network_disabled=True,
-            mem_limit="128m",
-            nano_cpus=500000000,  # 0.5 CPU
         )
 
-        print("Container started with ID:", container.id)
-
-        socket = container.attach_socket(params={"stdin": 1, "stream": 1})
-        socket._sock.sendall(payload_json.encode("utf-8"))
-        socket._sock.shutdown(pysocket.SHUT_WR)
-        socket._sock.close()
-
-        container.wait()
-
-        handler_result_raw = container.logs(stdout=True, stderr=False)
-        handler_logs_raw = container.logs(stdout=False, stderr=True)
-
-        handler_logs = handler_logs_raw.decode("utf-8") if handler_logs_raw else ""
-        print(handler_logs)
-
-        container.remove()
-        end_time = time()
-
-        json_response = (
-            json.loads(handler_result_raw.decode("utf-8")) if handler_result_raw else {}
-        )
-
-        synchronized_exec_data = {
-            "end_time": end_time,
-            "start_time": start_time,
-            "logs": handler_logs,
-            "response": json_response,
-            "handler_id": handler_id,
-        }
-
-        await publish_message(synchronized_exec_data, "logs_synchronous")
-
-        try:
-            return json_response
-        except Exception:
-            return handler_result_raw
-
+        return result
     except Exception as e:
         return {"error": str(e)}, 500
