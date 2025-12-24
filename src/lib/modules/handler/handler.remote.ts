@@ -7,7 +7,7 @@ import z from 'zod';
 import { redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { handler } from '$lib/server/db/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { checkAuthenticated } from '$lib/server/db/utils';
 import { UPLOAD_PATH } from '$env/static/private';
 
@@ -85,7 +85,8 @@ export const getHandlers = query(async () => {
 	const handlers = await db
 		.select()
 		.from(handler)
-		.where(and(eq(handler.userId, user.id), isNull(handler.deletedAt)));
+		.where(and(eq(handler.userId, user.id), isNull(handler.deletedAt)))
+		.orderBy(desc(handler.createdAt));
 
 	return handlers;
 });

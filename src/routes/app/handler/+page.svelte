@@ -41,7 +41,7 @@
 							class="p-1.5! text-xs! secondary w-auto"
 							onclick={async () => {
 								try {
-									await enableHandler({ id, enabled: !enabled }).updates(getHandlers());
+									await enableHandler({ id, enabled }).updates(getHandlers());
 								} catch (error) {
 									console.log('an error', error);
 								}
