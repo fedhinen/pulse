@@ -1,3 +1,70 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
+
+@theme {
+  --color-background: #000000;
+  --color-foreground: #ffffff;
+  --color-border: #333333;
+  --color-primary: #ffffff;
+  --color-primary-foreground: #000000;
+  --color-muted: #1a1a1a;
+  --color-muted-foreground: #a1a1aa;
+}
+
+body {
+  @apply bg-black text-white antialiased font-sans selection:bg-white selection:text-black;
+}
+
+h1 {
+  @apply text-3xl font-light tracking-tight mb-6;
+}
+
+h2 {
+  @apply text-2xl font-light tracking-tight mb-4;
+}
+
+h3 {
+  @apply text-xl font-medium mb-3;
+}
+
+h4 {
+  @apply text-sm font-medium text-gray-400 uppercase tracking-wider mb-2;
+}
+
+a {
+  @apply underline-offset-4 hover:underline transition-all;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="file"],
+select,
+textarea {
+  @apply text-black w-full bg-white border border-zinc-800 px-3 py-2 text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-colors placeholder-zinc-600 rounded-none;
+}
+
+input[type="checkbox"] {
+  @apply bg-black border-zinc-800 text-white focus:ring-white rounded-none;
+}
+
+button {
+  @apply bg-white text-black px-4 py-2 text-sm font-medium hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-none cursor-pointer;
+}
+
+button.secondary {
+  @apply bg-transparent text-white border border-zinc-800 hover:border-white hover:bg-zinc-900;
+}
+
+button.danger {
+  @apply bg-transparent text-red-500 border border-red-900 hover:bg-red-950 hover:border-red-500;
+}
+
+label {
+  @apply block mb-4;
+}
+
+.issue {
+  @apply text-red-500 text-xs mt-1;
+}
