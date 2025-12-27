@@ -27,6 +27,38 @@ services:
       - rabbitmq-lib:/var/lib/rabbitmq/
       - rabbitmq-log:/var/log/rabbitmq
 
+  web:
+    build:
+      context: .
+      args:
+        DATABASE_URL: postgres://root:mysecretpassword@db:5432/local
+        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+    restart: always
+    ports:
+      - 5173:5173
+    environment:
+      DATABASE_URL: postgres://root:mysecretpassword@db:5432/local
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      ORIGIN: http://localhost:5173
+    depends_on:
+      - db
+      - mq
+
+  manager:
+    build: ./manager
+    restart: always
+    privileged: true
+    user: root
+    ports:
+      - 8000:8000
+    environment:
+      WEB_URL: http://web:5173
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - web
+
 configs:
   rabbitmq-plugins:
     content: '[rabbitmq_management].'

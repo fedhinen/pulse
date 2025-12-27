@@ -4,7 +4,6 @@ import uuid
 from datetime import datetime
 from time import time
 from typing import Any, Dict
-from psycopg2.extras import Json
 
 from src.container import ContainerRun, ContainerRunner
 from src.schemas import AsynchronousExecData

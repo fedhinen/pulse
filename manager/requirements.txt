@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+docker
+requests
+aio-pika
+python-dotenv
+asyncpg
+psycopg2-binary
+httpx
+websockets
+watchfiles
+typer
+email-validator

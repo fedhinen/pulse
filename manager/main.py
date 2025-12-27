@@ -1,12 +1,12 @@
 import json
 from datetime import date
-from typing import Annotated, Any, Dict
+from typing import Annotated
 
 import docker
-from aio_pika import DeliveryMode, Message, connect_robust
 from fastapi import FastAPI, Header
 
 import requests
+import os
 
 from src.schemas import RUNTIMES, USER_PATH, HandlerData, JSONStructure
 from src.strategy import ExecutorFactory, HandlerExecutionData
@@ -29,8 +29,10 @@ async def run_handler(
     if x_pulse_key is None:
         return {"error": "Unauthorized"}, 401
 
+
+    web_url = os.getenv("WEB_URL", "http://localhost:5173")
     response = requests.get(
-        f"http://localhost:5173/api/handler/{handler_id}",
+        f"{web_url}/api/handler/{handler_id}",
         headers={"x-pulse-key": x_pulse_key},
     )
 
